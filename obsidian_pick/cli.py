@@ -1,85 +1,21 @@
 from pathlib import Path
+import shutil
 import textwrap
-import os
-import pickle
 import subprocess
-import sys
+import uuid
 
 from click import Path
 import typer
-import obsidiantools.api as ot
+import yaml
 
-from obsidian_pick.main import app, iterate_md_files, logger, quartz_content_path, resolve_path, vault_path
+from obsidian_pick.obsidian import app, iterate_md_files, logger, quartz_content_path, resolve_path, vault_path
 
 app = typer.Typer()
 
-# To be serialize the recursive graph datastsructure with picle, 
-# we need to increase the recursion limit
-sys.setrecursionlimit(1_000_000)
-
-@app.command()
-def generate_graph():
-    vault = ot.Vault("/home/johannes/writing/obsidian/main")
-    print('Connecting to vault...')
-    vault = vault.connect()
-    print('Gathering vault...')
-    vault = vault.gather()
-    pickle.dump(vault, open("vault.pickle", "wb"))
-
-def load_vault() -> ot.Vault:
-    vault = pickle.load(open("vault.pickle", "rb"))
-    return vault
-
-def is_publish_file(vault, file) -> bool:
-    fm = vault.get_front_matter(file)
-    return fm is not None and 'publish' in fm and fm['publish'] == 'true'
-
-def get_publish_files(vault) -> list:
-    index = vault.md_file_index
-    publish_files = []
-    for f in index:
-        if is_publish_file(vault, f):
-            publish_files.append(f)
-    return publish_files
-
-def find_unpublished_wikilinks_recursively(vault: ot.Vault, f, publish_files, links_missing_for_file, visited_files):
-    if f in visited_files:
-        return
-    if f in vault.nonexistent_notes:
-        print(f'File "{f}" does not exist')
-        visited_files.append(f)
-        return
-    for lf in set([l for l in vault.get_wikilinks(f) if l != ""]):
-        visited_files.append(f)
-        if lf not in publish_files:
-            links_missing_for_file.append(lf)
-            find_unpublished_wikilinks_recursively(vault, lf, publish_files, links_missing_for_file, visited_files)
-    return links_missing_for_file
-
-@app.command()
-def print_vault():
-    vault = load_vault()
-    # file = Path("/home/johannes/writing/obsidian/main") / index["VAISU talk on The Science Algorithm"]
-
-    index = vault.md_file_index
-    publish = []
-    for f in index:
-        fm = vault.get_front_matter(f)
-        if fm is not None and 'publish' in fm and fm['publish'] == 'true':
-            publish.append(f)
-
-    publish_files = get_publish_files(vault)
-    for f in publish_files:
-        links_missing_for_file = []
-        find_unpublished_wikilinks_recursively(vault, f, publish_files, links_missing_for_file, [])
-        if len(links_missing_for_file) > 0:
-            print(f'"{f}" links to these, but they are not published')
-            for lf in links_missing_for_file:
-                print(f"- {lf}")
-            print()
         
 @app.command()
 def create_htaccess():
+    """Create a .htaccess file for the website. in the public folder (you need to build first)"""
     htaccess = """
         AuthType Basic
         AuthName "Restricted Content"
@@ -103,25 +39,19 @@ def create_htaccess():
 
 @app.command()
 def build():
+    """Build the website with quartz."""
     subprocess.run(["npx", "quartz", "build", "--concurrency", "12"], check=True, cwd='/home/johannes/projects/quartz')
     create_htaccess()
 
 
 @app.command()
 def deploy(first_build: bool=False):
+    """Copy the build websit to the server."""
     if first_build:
         build()
     subprocess.run(["sudo", "rsync", "-avz", "--delete", "/home/johannes/projects/quartz/public/", "/var/www/html/"], check=True)
 
 
-main = app
-
-
-if __name__ == "__main__":
-    print_vault()
-
-
-@app.command()
 def copy_to_quartz():
     """Take all the files that are tagged with `publish: true` and copy them to the quartz content folder."""
     shutil.rmtree(quartz_content_path, ignore_errors=True)
@@ -197,6 +127,7 @@ def list_vault_files():
 
 @app.command()
 def extract_frontmatter_urls():
+    """Extract urls in the frontmatter of all files into the text of the file."""
     for f in iterate_md_files("references"):
         next_outer_itter = False
         for line in f.text.split("\n"):
@@ -243,3 +174,9 @@ def validate_files():
         assert (
             f.frontmatter["id"] == f.frontmatter["permalink"]
         ), f"ID and permalink do not match in {f}"
+
+
+main = app
+
+if __name__ == "__main__":
+    app()
