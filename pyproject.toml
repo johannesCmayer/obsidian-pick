@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "obsidian-pick"
+version = "0.1.0"
+description = ""
+authors = ["Johannes C. Mayer <j.c.mayer240@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.scripts]
+obsidian-pick = "obsidian_pick.cli:main"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+obsidiantools = "^0.10.0"
+typer = "^0.9.0"
+mypy = "^1.8.0"
+pytest = "^7.4.4"
+beartype = "^0.16.4"
+python-frontmatter = "^1.0.1"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
