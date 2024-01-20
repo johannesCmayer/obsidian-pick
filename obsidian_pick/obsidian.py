@@ -15,6 +15,7 @@ vault_path = Path("~/writing/obsidian/main").expanduser()
 quartz_content_path = Path("~/projects/quartz/content").expanduser()
 
 
+# TODO: Use the python frontmatter package instead of this briddle custom parser
 class MDFile:
     """Represents a markdown file in the vault. Frontmatter accessible via subscription syntax."""
     def __init__(self, path: Path):
@@ -29,7 +30,7 @@ class MDFile:
             text = ""
             lines = f.readlines()
             if len(lines) == 0:
-                return None, ""
+                return (path, path.stem, {}, "")
             if lines[0].startswith("---"):
                 lines = lines[1:]
                 frontmatter_mode = True
@@ -46,7 +47,7 @@ class MDFile:
         else:
             frontmatter = yaml.load(frontmatter, Loader=yaml.FullLoader)
 
-        return path, path.stem, frontmatter, text
+        return (path, path.stem, frontmatter, text)
 
     def get_urls(self):
         urls = []
